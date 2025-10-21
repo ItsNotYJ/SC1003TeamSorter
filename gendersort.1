@@ -87,7 +87,7 @@ for i, subgroup in enumerate(grouped_g10, start=1):
             male_count = 0
 #Adds any remaining students
 if current_group:
-    groups.append(current_group)
+    groups.append(copy.deepcopy(current_group)) #ensure each group is independent
 
 target_groups = [7,8,9]
 while len(groups) <= max(target_groups):
@@ -103,19 +103,19 @@ for student in group_extra:
         male_count_extra = sum(1 for student in group if student[4] == "Male")
         
         if len(group) < subgroup_size:
-            if gender == "Female" and female_count_extra < max_females:
-                group.append(student)
+            if (gender == "Female" and female_count_extra < max_females) or \
+               (gender == "Male" and male_count_extra < max_males):
+                group.append(copy.deepcopy(student))
                 placed = True
                 break
-            elif gender == "Male" and male_count_extra < max_males:
-                group.append(student)
+        #adds students if not placed
+    if not placed:
+        for idx in target_groups:
+            group = groups[idx]
+            if len(group) < subgroup_size:
+                group.append(copy.deepcopy(student))
                 placed = True
                 break
-#add any remaining students from group_extra to groups 8–10 in round-robin
-for idx, student in enumerate(group_extra):
-    group_idx = target_groups[idx % len(target_groups)]
-    if len(groups[group_idx]) < subgroup_size:
-        groups[group_idx].append(student)
                 
 for idx, group in enumerate(groups, start=1):
     print(f"\nGroup {idx}:")
@@ -131,8 +131,10 @@ for i, subgroup in enumerate(grouped_g10, start=1):
 # A function to attempt to reduce the distrubtion in the teams between the largest average CGPA and lowest average CGPA
 # We do a random swap to attempt to reduce the distribution
 #count the number of females in the group
-def countFemales(group):
-    return sum(1 for student in group if student[3] == "Female")
+def gender_rule(group):
+    females = sum(1 for student in group if student[4] == "Female")
+    males = sum(1 for s in group if student[4] == "Male")
+    return females <= max_females and males <= max_males
 def reduceTeamDist(groups, randAttempts = 1000):
     tempTeams = copy.deepcopy(groups)
     
@@ -168,7 +170,7 @@ def reduceTeamDist(groups, randAttempts = 1000):
                 groupOne[st1Index], groupTwo[st2Index] = groupTwo[st2Index], groupOne[st1Index]
 
                 #gender rule check
-                if countFemales(groupOne) > 3 or countFemales(groupTwo) > 3:
+                if not (gender_rule(groupOne) and gender_rule(groupTwo)):
                     #Rever if gender limit exceeded
                     groupOne[st1Index], groupTwo[st2Index] = groupTwo[st2Index], groupOne[st1Index]
                     continue
@@ -201,5 +203,5 @@ for i, g in enumerate(balanced_groups, start=1):
     print(f"Group {i} mean GPA: {mean_gpa:.2f}")
 
 #print the new balanced groups
-    for student in group:
+    for student in g:
         print(student)
