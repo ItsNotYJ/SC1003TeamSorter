@@ -1,0 +1,207 @@
+import random
+import copy
+
+#V3 read the file manually
+with open("students.csv", "r") as file:
+    lines = file.read().strip().split("\n")
+                                
+#convert to 2d array
+data = [line.split(",") for line in lines]
+
+# separate header and rows
+header = data[0]
+rows = data[1:]
+
+# Sort by Tutorial Group (first column, index 0)
+sorted_rows = sorted(rows, key=lambda x: x[0])
+
+#filtering out group 10 only
+group_name = "G-10"
+group_students = [row for row in rows if row [0] == group_name]
+
+#finding the number of male and female students
+Male_count = 0
+Female_count = 0
+Total_count = 0
+Tutorial_Group = "G-10"
+
+for row in sorted_rows:
+    if row[0] == Tutorial_Group:
+        if row[4] == "Male":
+          Male_count += 1
+        elif row[4] == "Female":
+          Female_count += 1
+    
+Total_count = Male_count + Female_count
+print("Number of male students:", Male_count)
+print("Number of female students:", Female_count)
+print("Number of total students:", Total_count)
+
+#remove student ID Column
+column_remove = 1
+new_header = header[:column_remove] + header[column_remove + 1:]
+new_student_data = [row[:column_remove] + row[column_remove+1:] for row in group_students]
+
+final_data = [new_header] + new_student_data
+
+grouped_g10 = [ group_students[i:i + 5] for i in range (0, len(group_students), 5)]
+print(f"=== {group_name} ===")
+print(", ".join(header))
+
+#mean cgpa of the group
+all_g10_students = [student for subgroup in grouped_g10 for student in subgroup] #converts the list of lists of students into a singular list
+cgpas = [float(student[5]) for student in all_g10_students]
+mean_groupCGPA = sum(cgpas)/ len(cgpas)
+print("Mean CGPA of G-10:",mean_groupCGPA)
+
+#group students into groups of 5 taking into account gender
+female_count = 0
+male_count = 0
+max_males = 2
+max_females = 3
+subgroup_size = 5
+current_group = []
+groups = []
+group_extra = [] #for extra students
+for i, subgroup in enumerate(grouped_g10, start=1):
+    for student in subgroup:
+        gender = student[4]
+        if gender == "Female" and female_count >= max_females: #checking if exceeds limit
+            group_extra.append(student) #sorts the extras back into an extra group
+            continue
+        if gender == "Male" and male_count >= max_males:
+            group_extra.append(student)
+            continue
+
+        #adds students to current groups
+        current_group.append(student)
+        if gender == "Female":
+            female_count += 1
+        else:
+            male_count += 1
+#if current group is full, reset the count
+        if len(current_group) == subgroup_size:
+            groups.append(current_group)
+            current_group = []
+            female_count = 0
+            male_count = 0
+#Adds any remaining students
+if current_group:
+    groups.append(copy.deepcopy(current_group)) #ensure each group is independent
+
+target_groups = [7,8,9]
+while len(groups) <= max(target_groups):
+    groups.append([]) #adds extra groups to ensure there is enough empty groups
+    
+for student in group_extra:
+    gender = student [4].strip().capitalize()
+    placed = False
+    #place the students in group_extra into groups 8,9,10
+    for idx in target_groups:
+        group = groups[idx]
+        female_count_extra = sum(1 for student in group if student[4] == "Female") #counts the number of females in the target group
+        male_count_extra = sum(1 for student in group if student[4] == "Male")
+        
+        if len(group) < subgroup_size:
+            if (gender == "Female" and female_count_extra < max_females) or \
+               (gender == "Male" and male_count_extra < max_males):
+                group.append(copy.deepcopy(student))
+                placed = True
+                break
+        #adds students if not placed
+    if not placed:
+        for idx in target_groups:
+            group = groups[idx]
+            if len(group) < subgroup_size:
+                group.append(copy.deepcopy(student))
+                placed = True
+                break
+                
+for idx, group in enumerate(groups, start=1):
+    print(f"\nGroup {idx}:")
+    for student in group:
+        print(student)
+
+#calculate and display the mean CGPA for each subgroup
+for i, subgroup in enumerate(grouped_g10, start=1):
+    subgroup_CGPA = [float(student[5]) for student in subgroup]
+    mean_subgroupCGPA = sum(subgroup_CGPA)/ len(subgroup_CGPA)
+    print(f"Mean CPGA of subgroup {i}: {mean_subgroupCGPA:.2f}")
+
+# A function to attempt to reduce the distrubtion in the teams between the largest average CGPA and lowest average CGPA
+# We do a random swap to attempt to reduce the distribution
+#count the number of females in the group
+def gender_rule(group):
+    females = sum(1 for student in group if student[4] == "Female")
+    males = sum(1 for s in group if student[4] == "Male")
+    return females <= max_females and males <= max_males
+def reduceTeamDist(groups, randAttempts = 1000):
+    tempTeams = copy.deepcopy(groups)
+    
+    # Check the current team average cgpa by summing each student's cgpa then dividing by the size of the team
+    def calcAverageGPA(group):
+        return sum(float(student[5]) for student in group) / len(group)
+    
+    # Now we find the difference between the two teams, we use abs() to ensure a positive number difference
+    def calcAvgGPADifference(groupOne, groupTwo):
+        return abs(calcAverageGPA(groupOne) - calcAverageGPA(groupTwo))
+    
+    # Attempt a fixed number of random swaps
+    currentAttempts = 0
+    while currentAttempts < randAttempts: # Attempt the random swap at n attempts
+        firstIndex = random.randint(0, len(tempTeams) - 1)
+        secIndex = random.randint(0, len(tempTeams) - 1)
+        
+        # Ensure that both the generated integer indexes are not the same
+        while firstIndex == secIndex:
+            secIndex = random.randint(0, len(tempTeams) - 1)
+        
+        # Reference the two randomly selected teams for comparison and swapping
+        groupOne = tempTeams[firstIndex]
+        groupTwo = tempTeams[secIndex]
+        
+        # Save the current best average CGPA difference
+        bestDifference = calcAvgGPADifference(groupOne, groupTwo)
+        
+        # Try every possible 1-for-1 swap between the two groups
+        for st1Index, st1 in enumerate(groupOne):
+            for st2Index, st2 in enumerate(groupTwo):
+                # We perform a 1-for-1 swap in positions of the two students, swapping them between the two teams
+                groupOne[st1Index], groupTwo[st2Index] = groupTwo[st2Index], groupOne[st1Index]
+
+                #gender rule check
+                if not (gender_rule(groupOne) and gender_rule(groupTwo)):
+                    #Rever if gender limit exceeded
+                    groupOne[st1Index], groupTwo[st2Index] = groupTwo[st2Index], groupOne[st1Index]
+                    continue
+                # Now we calculate the new cgpa difference between the two teams
+                newDifference = calcAvgGPADifference(groupOne, groupTwo)
+                
+                # We want to see if the new difference is smaller or not, if not we revert it back and try again with the other students in the two teams
+                if newDifference < bestDifference:
+                    bestDifference = newDifference
+                else:
+                    # Revert back
+                    groupOne[st1Index], groupTwo[st2Index] = groupTwo[st2Index], groupOne[st1Index]
+        
+        # If this random selection doesn't work out, we try again until satisfied
+        currentAttempts += 1
+
+    # Once satisfied or attempts finished, we return the newest updated team list with a lower deviation
+    return tempTeams
+
+print("Before balancing:")
+for i, g in enumerate(groups, start=1):
+    mean_gpa = sum(float(student[5]) for student in g) / len(g)
+    print(f"Group {i} mean GPA: {mean_gpa:.2f}")
+
+balanced_groups = reduceTeamDist(groups,randAttempts=1000)
+
+print("\nAfter balancing:")
+for i, g in enumerate(balanced_groups, start=1):
+    mean_gpa = sum(float(student[5]) for student in g) / len(g)
+    print(f"Group {i} mean GPA: {mean_gpa:.2f}")
+
+#print the new balanced groups
+    for student in g:
+        print(student)
