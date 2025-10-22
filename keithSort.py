@@ -135,6 +135,7 @@ def gender_rule(group):
     females = sum(1 for student in group if student[4] == "Female")
     males = sum(1 for s in group if student[4] == "Male")
     return females <= max_females and males <= max_males
+
 def reduceTeamDist(groups, randAttempts = 1000):
     tempTeams = copy.deepcopy(groups)
     
